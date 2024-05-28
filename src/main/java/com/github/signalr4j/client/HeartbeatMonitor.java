@@ -22,11 +22,11 @@ public class HeartbeatMonitor {
 
     private ScheduledThreadPoolExecutor mExecutor;
 
-    private boolean mTimedOut = false;
+    private volatile boolean mTimedOut = false;
 
-    private boolean mHasBeenWarned = false;
+    private volatile boolean mHasBeenWarned = false;
 
-    private boolean mStopped = true;
+    private volatile boolean mStopped = true;
 
     private Object mSync = new Object();
 
@@ -61,6 +61,7 @@ public class HeartbeatMonitor {
 
                 @Override
                 public void run() {
+                    Runnable mOnRun = null;
                     synchronized (mSync) {
                         if (!mStopped) {
                             if (connection.getState() == ConnectionState.Connected) {
@@ -71,14 +72,14 @@ public class HeartbeatMonitor {
                                     if (!mTimedOut) {
                                         // Connection has been lost
                                         mTimedOut = true;
-                                        mOnTimeout.run();
+                                        mOnRun = mOnTimeout;
                                     }
                                 } else if (timeElapsed >= mKeepAliveData.getTimeoutWarning()) {
                                     if (!mHasBeenWarned) {
                                         // Inform user and set HasBeenWarned to
                                         // true
                                         mHasBeenWarned = true;
-                                        mOnWarning.run();
+                                        mOnRun = mOnWarning;
                                     }
                                 } else {
                                     mHasBeenWarned = false;
@@ -87,6 +88,8 @@ public class HeartbeatMonitor {
                             }
                         }
                     }
+                    if (mOnRun != null)
+                      mOnRun.run();
                 }
             }, interval, interval, TimeUnit.MILLISECONDS);
         }
